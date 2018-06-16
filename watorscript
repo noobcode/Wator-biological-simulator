@@ -1,0 +1,110 @@
+#!/bin/bash
+#
+# \file watorscript
+# \author Carlo Alessi
+#  Si dichiara che il contenuto di questo file e' in ogni sua parte opera
+#  originale dell' autore. 
+
+E_NOARGS=85 # exit status in caso di mancati argomenti
+E_NOTFOUND=86 # exit status in caso di file non trovato
+
+usage="Usage: $0 <filename> [-opt]" # messaggio di uso corretto del file
+
+function check_argomenti(){
+	if [ -f "$1" ]; then
+		filename=$1 
+		if [ "$2" = "-s" ] || [ "$2" = "-f" ] || [ "$2" = "--help" ]; then
+			opt=$2
+		else
+			echo "Errore: secondo argomento non consentito" 1>&2
+			exit 1
+		fi
+	elif [ -f "$2" ]; then
+		filename=$2
+		if [ "$1" = "-s" ] || [ "$1" = "-f" ] || [ "$1" = "--help" ]; then
+			opt=$1
+		else
+			echo "Errore: primo argomento non consentito" 1>&2
+			exit 1
+		fi
+	else
+		echo "Errore: $usage " 1>&2
+		exit 1
+	fi
+}
+
+function isfile(){
+	# se passo un solo argomento allora deve essere un file
+	if [ ! -f "$filename" ]; then # Quoting $filename allows for possible spaces.
+		echo "File $filename not found!" >&2 
+		exit $E_NOTFOUND
+	fi
+}
+
+function isformatted(){
+	# parte da aggiustare
+	read -u3 line
+	if [[ "$line" < "1" ]]; then
+		echo "NO" 1>&2
+		exit 1
+	fi
+
+	read -u3 line
+	if [[ "$line" < "1" ]]; then
+		echo "NO" 1>&2
+		exit 1
+	fi
+	# parte ok
+	while read -n2 -u3 char; do # leggo 2 caratteri alla volta dal file descriptor 3
+		if [ "$char" != "W" ] && [ "$char" != "S" ] && [ "$char" != "F" ]; then
+			echo "NO" 1>&2
+			exit 1
+		fi
+	done
+	# se il codice arriva qui allora il file è ben formattato
+	echo "OK" 1>&2
+}
+
+
+function count(){
+	let n=0
+	opt=${opt/-/""} # toglie il '-' da '-s' o '-f'
+	opt=${opt^^} #diventa uppercase
+
+	while read -n2 -u3 char; do 
+		if [[ "$char" == "$opt" ]]; then
+			((n++))
+		fi
+	done
+
+	echo "$n"
+}
+
+if [ $# -gt 2 ]; then
+	echo "Error too much arguments for" $(basename $0). $usage 1>&2
+	exit 1
+fi
+
+if [ $# -lt 1 ]; then
+	echo "Error few arguments for" $(basename $0). $usage 1>&2
+	exit $E_NOARGS
+fi
+
+if [[ $1 == "--help" ]]; then
+	echo $usage 1>&2
+	exit 1
+fi
+
+if [ $# -eq 1 ]; then
+	filename=$1
+	isfile $filename
+	exec 3< $filename    # apro il file "filename" in lettura assegnandogli il fd 3
+	isformatted $filename
+	exec 3>&-			# chiudo il file descriptor
+else	
+	check_argomenti $1 $2
+	echo "$filename $opt" 1>&2
+	exec 3< $filename
+	count $opt
+	exec 3>&-
+fi
